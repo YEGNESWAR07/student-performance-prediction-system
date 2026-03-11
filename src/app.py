@@ -1,4 +1,5 @@
 import os
+import sys
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import pandas as pd
@@ -6,13 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
-# Import from our modularized files
-# Assuming src is not in python path by default if run from root, we might need adjustments.
-# But for now, standard import assuming PYTHONPATH is set or run as module.
-# If running 'python src/app.py' directly, we can use relative imports or modify sys path.
-# Let's adjust sys.path for simplicity if run from src/
-import sys
-import os
+# Ensure project root is on sys.path so 'src.*' imports work
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.data_generator import generate_synthetic
@@ -62,7 +57,7 @@ class StudentMLApp:
         self.tree.configure(yscrollcommand=vsb.set)
 
         right = ttk.LabelFrame(mid_frame, text="Model Comparison (Metrics)", padding=6)
-        right.pack(side=tk.RIGHT, fill=tk.BOTH, reexpand=True, padx=6, pady=6) # Changed expand to reexpand? No, just expand.
+        right.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=6, pady=6)
 
         self.metrics_tree = ttk.Treeview(right, columns=("Model", "Accuracy", "Precision", "Recall", "F1-Score"), show='headings', height=12)
         for col in ("Model", "Accuracy", "Precision", "Recall", "F1-Score"):
@@ -136,26 +131,25 @@ class StudentMLApp:
         if self.df is None:
             messagebox.showwarning("No Data", "Load or generate data first.")
             return
-        # We need to use proper checking logic or just raw data. 
-        # Ideally we should use the same logic as training if training happened, 
-        # but for raw visualization let's just show raw data distribution.
-        # Actually, let's use the helper from train_model just to be consistent if possible,
-        # but since we can't easily import it without circular issues or restructure, let's allow raw show.
-        # Wait, we imported train_and_evaluate. We can import ensure_two_classes too if we want.
-        from src.train_model import ensure_two_classes
-        df_checked, _ = ensure_two_classes(self.df)
-        
-        counts = df_checked['Result'].value_counts().sort_index()
-        # Handle cases where 0 or 1 might be missing in raw data (though ensure_two_classes fixes it usually)
-        labels = ['Fail (0)', 'Pass (1)']
-        sizes = [counts.get(0, 0), counts.get(1, 0)]
-        
-        self.fig.clf()
-        ax = self.fig.add_subplot(111)
-        colors = ['salmon', 'lightgreen']
-        ax.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90, colors=colors, explode=(0.05, 0.05))
-        ax.set_title("Pass vs Fail Distribution")
-        self.canvas.draw()
+        try:
+            # Map string labels to numeric for counting
+            result_col = self.df['Result'].copy()
+            if pd.api.types.is_string_dtype(result_col):
+                result_col = result_col.map({'Pass': 1, 'Fail': 0})
+            result_col = pd.to_numeric(result_col, errors='coerce').dropna().astype(int)
+
+            labels = ['Fail (0)', 'Pass (1)']
+            counts = result_col.value_counts()
+            sizes = [counts.get(0, 0), counts.get(1, 0)]
+
+            self.fig.clf()
+            ax = self.fig.add_subplot(111)
+            colors = ['salmon', 'lightgreen']
+            ax.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90, colors=colors, explode=(0.05, 0.05))
+            ax.set_title("Pass vs Fail Distribution")
+            self.canvas.draw()
+        except Exception as e:
+            messagebox.showerror("Pie Chart Error", f"Could not generate pie chart:\n{e}")
 
     def show_points(self):
         if self.results is None:

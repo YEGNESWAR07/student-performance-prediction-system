@@ -24,11 +24,15 @@ def ensure_two_classes(df):
     Returns modified df and a flag indicating whether modification occurred.
     """
     df = df.copy()
-    # Map textual labels to numeric if needed
-    if df['Result'].dtype == object:
+    # Map textual labels to numeric if needed (handles both object and StringDtype)
+    if pd.api.types.is_string_dtype(df['Result']):
         df['Result'] = df['Result'].map({'Pass': 1, 'Fail': 0})
+    # Ensure Result is numeric
+    df['Result'] = pd.to_numeric(df['Result'], errors='coerce')
     # Fill missing numeric features
-    df[['StudyHours', 'Attendance', 'PreviousScore', 'AssignmentMarks']] = df[['StudyHours', 'Attendance', 'PreviousScore', 'AssignmentMarks']].fillna(df.median())
+    numeric_cols = ['StudyHours', 'Attendance', 'PreviousScore', 'AssignmentMarks']
+    df[numeric_cols] = df[numeric_cols].apply(pd.to_numeric, errors='coerce')
+    df[numeric_cols] = df[numeric_cols].fillna(df[numeric_cols].median())
     
     # If Result has only one unique value, recompute using a score proxy
     if df['Result'].nunique() < 2:
@@ -42,7 +46,7 @@ def ensure_two_classes(df):
         modified = False
     
     # Ensure integer type
-    df['Result'] = df['Result'].astype(int)
+    df['Result'] = df['Result'].fillna(0).astype(int)
     return df, modified
 
 def train_and_evaluate(df):
